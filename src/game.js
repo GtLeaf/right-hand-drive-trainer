@@ -1,5 +1,6 @@
-import { LEVELS, REGIONS, WORLD } from './data.js';
-import { clamp, crossed, distance, isOnRoad, lightState, nearbyNpc, steeringStep, wrongSide } from './rules.js';
+import { BRIDGE, CONTROL_POINTS, JUNCTIONS, LEVELS, REGIONS, SIGNAL_APPROACHES, WORLD } from './data.js';
+import { clamp, crossesControl, distance, isOnRoad, signalApproachForCar, signalForApproach, steeringStep, wrongSide } from './rules.js';
+import { createNpcs, updateNpcs } from './npc.js';
 import { render, renderMiniMap } from './render.js';
 
 const elements = Object.fromEntries([
@@ -74,34 +75,13 @@ function showHome() {
   renderLevelList();
 }
 
-function createNpcs(levelId, density) {
-  const traffic = [
-    { type: 'east', x: 85, y: 155, angle: Math.PI / 2, speed: 52, color: '#d8e7cf' },
-    { type: 'west', x: 1020, y: 205, angle: -Math.PI / 2, speed: 43, color: '#a8c9ba' },
-    { type: 'ring', phase: .5, speed: 39, color: '#e2b482' },
-    { type: 'bridge', x: 1010, y: 745, angle: -Math.PI / 2, speed: 36, color: '#dbcbc0' },
-    { type: 'south', x: 585, y: 75, angle: Math.PI, speed: 45, color: '#c4d1e0' },
-    { type: 'junction', x: 1020, y: 475, angle: -Math.PI / 2, speed: 35, color: '#b8cdb8' }
-  ];
-  const selected = levelId === 5 ? [traffic[2], traffic[0]]
-    : levelId === 2 || levelId === 3 ? traffic.slice(0, 2)
-      : levelId === 4 ? [traffic[0], traffic[1], traffic[4]]
-        : traffic;
-  return (density === 'low' ? selected.slice(0, Math.min(2, selected.length)) : selected).map(npc => ({
-    ...npc, clock: 0, signal: null,
-    x: npc.type === 'ring' ? 560 + Math.sin(npc.phase) * 80 : npc.x,
-    y: npc.type === 'ring' ? 450 - Math.cos(npc.phase) * 80 : npc.y,
-    angle: npc.type === 'ring' ? npc.phase + Math.PI / 2 : npc.angle
-  }));
-}
-
 function startLevel(id) {
   const level = LEVELS.find(item => item.id === id);
   if (!level || id > progress[regionKey] + 1 || (id === 7 && progress[regionKey] < 6)) return;
   const density = game?.density || 'normal';
   game = {
     level, region: REGIONS[regionKey], car: { ...level.start, speed: 0, signal: null },
-    input: { steer: 0, throttle: false, brake: false }, npcs: createNpcs(id, density),
+    input: { steer: 0, throttle: false, brake: false }, npcs: createNpcs(id, density, REGIONS[regionKey]),
     density, elapsed: 0, checkpoint: 0, violations: [], lastViolation: new Map(),
     paused: false, stopDwell: 0, offRoadTime: 0, wrongSideTime: 0, fastTime: 0,
     toastUntil: 0, turnEntry: null, completed: false
@@ -165,91 +145,44 @@ function report(code, message, serious = false) {
   }
 }
 
-function updateNpcs(delta) {
-  for (const npc of game.npcs) {
-    npc.clock = game.elapsed;
-    const distanceStep = npc.speed * delta;
-    let x = npc.x;
-    let y = npc.y;
-    if (npc.type === 'ring') {
-      const nextPhase = npc.phase + distanceStep / 80;
-      x = 560 + Math.sin(nextPhase) * 80;
-      y = 450 - Math.cos(nextPhase) * 80;
-      if (distance({ x, y }, game.car) > 42) npc.phase = nextPhase;
-      npc.x = 560 + Math.sin(npc.phase) * 80;
-      npc.y = 450 - Math.cos(npc.phase) * 80;
-      npc.angle = npc.phase + Math.PI / 2;
-      npc.signal = null;
-      continue;
-    }
-    if (npc.type === 'east') {
-      x += distanceStep;
-      if (npc.x < 510 && x >= 510 && lightState(game.elapsed, game.region, true) !== 'green') x = 509.5;
-      if (x > 1040) x = 70;
-    } else if (npc.type === 'west') {
-      x -= distanceStep;
-      if (npc.x > 610 && x <= 610 && lightState(game.elapsed, game.region, true) !== 'green') x = 610.5;
-      if (x < 60) x = 1030;
-    } else if (npc.type === 'bridge') {
-      x -= distanceStep;
-      if (x < 60) x = 1030;
-      const onBridge = clamp((x - 650) / 40, 0, 1) * clamp((810 - x) / 40, 0, 1);
-      y = 745 - 25 * onBridge;
-    } else if (npc.type === 'south') {
-      y += distanceStep;
-      if (npc.y < 132 && y >= 132 && lightState(game.elapsed, game.region) !== 'green') y = 131.5;
-      if (y > 333) y = 70;
-    } else if (npc.type === 'junction') {
-      x -= distanceStep;
-      if (x < 795) x = 1030;
-    }
-    if (distance({ x, y }, game.car) > 40 || Math.abs(x - npc.x) > 200) {
-      npc.x = x;
-      npc.y = y;
-    }
-  }
-}
-
 function checkSignalLine(previous) {
-  const car = game.car;
-  const atVertical = car.x > 510 && car.x < 610;
-  const atHorizontal = car.y > 130 && car.y < 230;
-  let direction = null;
-  let horizontal = false;
-  if (atVertical && Math.cos(car.angle) > .55 && crossed(previous, car, 'y', 228, -1)) direction = '北向';
-  else if (atVertical && Math.cos(car.angle) < -.55 && crossed(previous, car, 'y', 132, 1)) direction = '南向';
-  else if (atHorizontal && Math.sin(car.angle) > .55 && crossed(previous, car, 'x', 510, 1)) { direction = '东向'; horizontal = true; }
-  else if (atHorizontal && Math.sin(car.angle) < -.55 && crossed(previous, car, 'x', 610, -1)) { direction = '西向'; horizontal = true; }
-  if (!direction) return;
-  const state = lightState(game.elapsed, game.region, horizontal);
-  if (state === 'red' || state === 'redAmber') report('red-light', `${direction}信号为红灯，应在停止线前停车。`, true);
-  else if (state === 'amber' && car.speed < 80) report('amber-light', '黄灯原则上应停车；仅在无法安全停下时继续。');
+  for (const approach of SIGNAL_APPROACHES) {
+    if (!crossesControl(previous, game.car, approach)) continue;
+    const state = signalForApproach(game.elapsed, game.region, approach);
+    if (state === 'red' || state === 'redAmber') report('red-light', `${approach.name}信号为红灯，应在对应停止线前停车。`, true);
+    else if (state === 'amber' && game.car.speed < 80) report('amber-light', '黄灯原则上应停车；仅在无法安全停下时继续。');
+    break;
+  }
 }
 
 function checkJunction(previous, delta) {
   const car = game.car;
-  const northboundAtT = car.x > 160 && car.x < 210 && Math.cos(car.angle) > .55;
-  if (northboundAtT && car.y > 230 && car.y < 285 && car.speed < 7) game.stopDwell += delta;
+  const stop = CONTROL_POINTS.find(point => point.id === 'stop-t');
+  const give = CONTROL_POINTS.find(point => point.id === 'give-t');
+  const northboundAtT = car.x >= stop.laneMin && car.x <= stop.laneMax && Math.cos(car.angle) > .55;
+  if (northboundAtT && car.y > stop.y && car.y < stop.y + 55 && car.speed < 7) game.stopDwell += delta;
   if (car.y > 315 || car.x > 235) game.stopDwell = 0;
-  if (northboundAtT && crossed(previous, car, 'y', 229, -1)) {
-    if (game.level.id === 3) {
-      if (nearbyNpc(game.npcs.filter(npc => npc.type === 'east' || npc.type === 'west'), { x: 210, y: 180 }, 125)) {
-        report('give-way', 'GIVE WAY：先让主路车辆通过，确认安全间隙后再转。', true);
-      }
-    } else if (game.stopDwell < .3) report('stop', `STOP：应在${game.region.code === 'NZ' ? '黄线' : '停车线'}前完全停稳，观察双向来车再通行。`, true);
+  if (crossesControl(previous, car, stop)) {
+    if (game.stopDwell < .3) report('stop', `STOP：应在${game.region.code === 'NZ' ? '黄线' : '停车线'}前完全停稳，观察双向来车再通行。`, true);
     game.stopDwell = 0;
   }
-  if (car.x > 875 && car.x < 925 && Math.cos(car.angle) < -.55 && crossed(previous, car, 'y', 405, 1)) {
-    if (nearbyNpc(game.npcs, { x: 900, y: 450 }, 90)) report('east-give-way', 'GIVE WAY：这里应先让主路车辆通过。', true);
+  if (crossesControl(previous, car, give)) {
+    if (game.npcs.some(npc => distance(npc, { x: 900, y: 450 }) < 88)) report('give-way', 'GIVE WAY：这里应先让主路车辆通过。', true);
   }
-  if (car.x > 500 && car.x < 555 && Math.cos(car.angle) > .55 && crossed(previous, car, 'y', 565, -1)) {
-    const onCircle = game.npcs.filter(npc => npc.type === 'ring');
-    if (nearbyNpc(onCircle, { x: 510, y: 520 }, 70)) report('roundabout-give', '进入环岛前，应让行已经接近的环岛车辆。', true);
+  for (const control of CONTROL_POINTS.filter(point => point.type === 'round-give')) {
+    if (!crossesControl(previous, car, control)) continue;
+    const onCircle = game.npcs.filter(npc => {
+      const radius = distance(npc, WORLD.roundabout);
+      return radius > WORLD.roundabout.inner && radius < WORLD.roundabout.outer;
+    });
+    if (onCircle.some(npc => distance(npc, control) < 85)) report('roundabout-give', '进入环岛前，应让行已经接近的环岛车辆。', true);
+    break;
   }
-  if (game.region.bridge && car.y > 685 && car.y < 750 && Math.sin(car.angle) > .55 && crossed(previous, car, 'x', 680, 1)) {
-    if (game.npcs.some(npc => npc.type === 'bridge' && npc.x > 670 && npc.x < 830)) {
-      report('bridge', '单车道桥梁：先看优先通行标志，让对向来车通过。', true);
-    }
+  if (game.region.bridge && CONTROL_POINTS.filter(point => point.type.startsWith('bridge-')).some(point => crossesControl(previous, car, point))) {
+    const onBridge = game.npcs.some(npc => npc.x > BRIDGE.from && npc.x < BRIDGE.to && Math.abs(npc.y - BRIDGE.y) < 35);
+    const opposing = car.angle > 0 && car.angle < Math.PI && game.npcs.some(npc => npc.route.id === 'lower-west'
+      && npc.x > BRIDGE.to && npc.x < BRIDGE.to + 100 && Math.abs(npc.y - BRIDGE.y) < 70);
+    if (onBridge || opposing) report('bridge', '单车道桥梁：先看优先通行标志，让对向来车通过。', true);
   }
 }
 
@@ -258,7 +191,7 @@ function angleDifference(first, second) {
 }
 
 function checkTurning(previous) {
-  const junctions = [{ x: 210, y: 180 }, { x: 560, y: 180 }, { x: 900, y: 450 }];
+  const junctions = JUNCTIONS.filter(junction => ['stop-t', 'signal', 'give-t'].includes(junction.id));
   const nearby = junctions.find(point => distance(point, game.car) < 83);
   if (nearby) {
     if (!game.turnEntry) game.turnEntry = { point: nearby, angle: previous.angle, signal: game.car.signal, checkedRight: false };
@@ -266,7 +199,7 @@ function checkTurning(previous) {
     const turnAmount = angleDifference(game.car.angle, game.turnEntry.angle);
     if (nearby.x === 560 && turnAmount > .45 && !game.turnEntry.checkedRight) {
       game.turnEntry.checkedRight = true;
-      if (game.npcs.some(npc => npc.type === 'south' && distance(npc, nearby) < 85)) {
+      if (game.npcs.some(npc => Math.cos(npc.angle) < -.55 && distance(npc, nearby) < 85)) {
         report('oncoming', '右转横穿路口前，应让对向直行车辆通过。', true);
       }
     }
@@ -290,7 +223,7 @@ function checkTurning(previous) {
 
 function checkDriving(previous, delta) {
   const car = game.car;
-  if (!isOnRoad(car) && car.speed > 20) game.offRoadTime += delta;
+  if (!isOnRoad(car, game.region) && car.speed > 20) game.offRoadTime += delta;
   else game.offRoadTime = 0;
   if (game.offRoadTime > .6) { report('off-road', '请回到道路范围内，沿左侧车道行驶。'); game.offRoadTime = 0; }
   if (car.speed > 18 && wrongSide(car, car.angle)) game.wrongSideTime += delta;
@@ -307,7 +240,7 @@ function checkDriving(previous, delta) {
   if (game.paused) return;
   for (const npc of game.npcs) {
     if (distance(car, npc) < 24) {
-      report(`collision-${npc.type}`, '与其他车辆发生碰撞。真实驾驶中必须停车确认安全。', true);
+      report(`collision-${npc.id}`, '与其他车辆发生碰撞。真实驾驶中必须停车确认安全。', true);
       break;
     }
   }
@@ -335,11 +268,16 @@ function update(delta) {
   game.elapsed += delta;
   const previous = { x: game.car.x, y: game.car.y, angle: game.car.angle };
   steeringStep(game.car, game.input, delta);
-  updateNpcs(delta);
+  updateNpcs(game.npcs, delta, game.elapsed, game.region, game.car);
   checkDriving(previous, delta);
   if (!game.paused) updateCheckpoints();
   if (game.elapsed >= game.toastUntil) elements.toast.classList.remove('visible');
   elements.speed.textContent = String(Math.round(game.car.speed * .38));
+  const approachingSignal = signalApproachForCar(game.car);
+  const colors = { red: '红灯', redAmber: '红黄灯 · 停车', amber: '黄灯', green: '绿灯' };
+  elements['status-banner'].textContent = approachingSignal
+    ? `${game.region.name} · 前方${approachingSignal.name}信号：${colors[signalForApproach(game.elapsed, game.region, approachingSignal)]}`
+    : `${game.region.name}规则 · ${game.level.id === 7 ? '自由行驶' : '安全优先'}`;
 }
 
 function resizeCanvas() {
@@ -492,7 +430,8 @@ function bindPage() {
   elements['density-button'].addEventListener('click', () => {
     if (!game) return;
     game.density = game.density === 'normal' ? 'low' : 'normal';
-    game.npcs = createNpcs(game.level.id, game.density);
+    game.npcs = createNpcs(game.level.id, game.density, game.region)
+      .map(candidate => game.npcs.find(existing => existing.id === candidate.id) || candidate);
     elements['density-button'].textContent = `车流：${game.density === 'low' ? '低' : '标准'}`;
   });
   window.addEventListener('resize', resizeCanvas);

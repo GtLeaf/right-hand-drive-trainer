@@ -40,6 +40,15 @@ try {
   await page.evaluate(() => localStorage.setItem('right-side-ready-progress-v1', JSON.stringify({ nz: 6, uk: 0 })));
   await page.reload();
   assert.equal(await page.locator('[data-level="7"]').isDisabled(), false);
+  await page.locator('[data-level="3"]').click();
+  assert.equal(await page.locator('#play-name').innerText(), 'T 型右转');
+  assert.match(await page.locator('#mission-text').innerText(), /东侧 T 字口让行后右转/);
+  await page.screenshot({ path: 'tools/t-junction-preview.png' });
+  await page.locator('#back-button').click();
+  await page.locator('[data-level="4"]').click();
+  await page.waitForFunction(() => document.querySelector('#status-banner').textContent.includes('北向信号'));
+  await page.screenshot({ path: 'tools/signal-preview.png' });
+  await page.locator('#back-button').click();
   await page.locator('[data-level="7"]').click();
   assert.equal(await page.locator('#mini-map').isVisible(), true);
   await page.screenshot({ path: 'tools/free-preview.png' });
@@ -76,6 +85,11 @@ try {
   assert.equal(await page.locator('#level-list .level-card').count(), 7);
   await page.locator('[data-level="7"]').click();
   assert.equal(await page.locator('#play').isVisible(), true);
+  await page.locator('#back-button').click();
+  await page.locator('[data-region="uk"]').click();
+  await page.locator('[data-level="1"]').click();
+  assert.equal(await page.locator('#play').isVisible(), true);
+  assert.match(await page.locator('#play-index').innerText(), /UK/);
   await desktop.close();
 
   const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
@@ -110,7 +124,7 @@ try {
   await portrait.close();
 
   assert.deepEqual(errors, []);
-  console.log('通过：首关通关、STOP 违规、地区切换、自由关不中断、离线重开、横竖屏布局；无页面异常。');
+  console.log('通过：首关通关、STOP 违规、T 字口、信号方向、地区切换、自由关不中断、离线重开并切英国、横竖屏布局；无页面异常。');
 } finally {
   await browser.close();
 }

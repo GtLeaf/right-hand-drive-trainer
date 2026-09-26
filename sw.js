@@ -1,5 +1,5 @@
-const CACHE = 'right-side-ready-v3';
-const ASSETS = ['./','./index.html','./styles.css','./manifest.webmanifest','./assets/icon.svg','./src/data.js','./src/rules.js','./src/render.js','./src/game.js'];
+const CACHE = 'right-side-ready-v6';
+const ASSETS = ['./','./index.html','./styles.css','./manifest.webmanifest','./assets/icon.svg','./src/data.js','./src/rules.js','./src/render.js','./src/npc.js','./src/game.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

@@ -1,13 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { REGIONS } from '../src/data.js';
-import { crossed, isOnRoad, lightState, steeringStep, wrongSide } from '../src/rules.js';
+import { crossed, crossesControl, isOnRoad, lightState, signalApproachForCar, steeringStep, wrongSide } from '../src/rules.js';
+import { SIGNAL_APPROACHES } from '../src/data.js';
 
 test('新西兰灯号没有英国红黄同亮阶段', () => {
-  assert.equal(lightState(19.5, REGIONS.nz), 'red');
-  assert.equal(lightState(19.5, REGIONS.uk), 'redAmber');
+  assert.equal(lightState(22.5, REGIONS.nz), 'red');
+  assert.equal(lightState(22.5, REGIONS.uk), 'redAmber');
   assert.equal(lightState(4, REGIONS.nz), 'green');
-  assert.equal(lightState(10, REGIONS.nz), 'amber');
+  assert.equal(lightState(9, REGIONS.nz), 'amber');
+  for (let time = 0; time < 23; time += .1) {
+    assert.ok(!(lightState(time, REGIONS.nz) === 'green' && lightState(time, REGIONS.nz, true) === 'green'));
+    assert.ok(!(lightState(time, REGIONS.uk) === 'green' && lightState(time, REGIONS.uk, true) === 'green'));
+  }
+});
+
+test('四个方向都绑定各自的停车线与信号', () => {
+  for (const approach of SIGNAL_APPROACHES) {
+    const from = { x: approach.axis === 'x' ? approach.position - approach.direction * 6 : (approach.laneMin + approach.laneMax) / 2,
+      y: approach.axis === 'y' ? approach.position - approach.direction * 6 : (approach.laneMin + approach.laneMax) / 2,
+      angle: approach.heading };
+    const to = { ...from, [approach.axis]: approach.position + approach.direction * 6 };
+    assert.equal(crossesControl(from, to, approach), true, approach.id);
+    assert.equal(signalApproachForCar(from)?.id, approach.id);
+  }
 });
 
 test('左右车道根据行驶方向判定', () => {

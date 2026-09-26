@@ -1,6 +1,8 @@
 # 道路、信号与 NPC 修复方案
 
-> 2026-09-26。此文档是修复计划，**尚未修改游戏实现**。以新西兰地图为先，英国地区复用几何并分别复核标志与灯号。现有手机操作、离线缓存、关卡进度，以及自由关违规不中断的行为保留。
+> 2026-09-26。核心修复已接入原型；下文保留最初的修复目标与后续扩展建议。新西兰为默认地区，英国复用地图并采用自己的灯序和标线配置。手机操作、离线缓存、旧关卡进度，以及自由关违规不中断的行为保留。
+
+**实施状态**：已分离两处 T 字口、四方向灯与停止线；道路中心线在路口、斑马线和窄桥前中止；三条 NPC 路线闭环驶入/驶离环岛，不再越界重置。两地区分别通过十分钟加速模拟，覆盖 STOP、红灯、桥梁占用、连续位移和死锁回归；浏览器流程覆盖地区切换、自由关严重违规不中断、离线重开与手机横竖屏布局。仍需真机和熟悉当地规则的驾驶者人工审核，尤其是复杂转弯、行人与所有关卡实际操控路线。
 
 ## 根因
 
@@ -50,10 +52,12 @@
 
 | 优先级 | 场景 | 玩家要练习的决定 | 实现重点 |
 | --- | --- | --- | --- |
-| 首选 | **单车道桥梁／窄桥让行** | 接近时减速、读红圈让行或蓝牌优先标志、观察桥上与对向车辆，安全后通行；有优先权也不能撞上已在桥上的车。 | 桥梁做成一次只能容纳单方向车辆的冲突区，双端标志、NPC 排队和桥上占用共用同一规则；不再只按接近距离报警。[NZTA 窄桥规则](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-driving/giving-way/giving-way-on-one-lane-bridges) |
-| 高 | **行人过街与转弯让行** | 看到斑马线有人正在过或明显等待时停车；绿灯右转仍观察对向直行车和行人。 | 行人有等待、进入、通过三种状态；车辆不得只看自己的绿灯。[NZTA 行人规则](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-other-road-users/sharing-the-road/sharing-the-road-with-pedestrians)、[路口让行](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-driving/giving-way/the-give-way-rules) |
-| 中 | **车道合并／并入主路** | 看车道结束标线、提前示意、留出安全间隙，练习交替并线。 | NPC 保持连续车距，不做突然变道；需有清晰侧后方来车提示。[NZTA 合流规则](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-driving/key-driving-skills/merging) |
-| 中 | **铁路平交道口** | 识别闪灯／栏杆或 STOP、GIVE WAY，确认对侧有容车空间再过铁轨。 | 先实现一个有栏杆及一个无主动警示的版本；不做追逐火车玩法。[NZTA 铁路道口规则](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-driving/giving-way/giving-way-at-railway-level-crossings) |
-| 后续 | **乡村道路、限速与禁超标线** | 弯道前降速，识别限速和实黄禁超线，不把建议弯道速度当成统一限速。 | 需要足够长的可视距离与更丰富的路况，优先做判断题和低速场景，暂不做高速超车物理模拟。[NZTA 速度标志](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-limits/speed-limits)、[超车标线](https://www.nzta.govt.nz/driving-skills/learn-to-drive/roadcode/general-road-code/about-driving/key-driving-skills/passing) |
+| 首选 | **单车道桥梁／窄桥让行** | 接近时减速、读让行或优先标志、观察桥上与对向车辆，安全后通行；有优先权也不能撞上已在桥上的车。 | 桥梁做成一次只能容纳单方向车辆的冲突区，双端标志、NPC 排队和桥上占用共用同一规则；不再只按接近距离报警。 |
+| 高 | **行人过街与转弯让行** | 看到斑马线有人正在过或明显等待时停车；绿灯右转仍观察对向直行车和行人。 | 行人有等待、进入、通过三种状态；车辆不得只看自己的绿灯。 |
+| 中 | **车道合并／并入主路** | 看车道结束标线、提前示意、留出安全间隙，练习交替并线。 | NPC 保持连续车距，不做突然变道；需有清晰侧后方来车提示。 |
+| 中 | **铁路平交道口** | 识别闪灯／栏杆或 STOP、GIVE WAY，确认对侧有容车空间再过铁轨。 | 先实现一个有栏杆及一个无主动警示的版本；不做追逐火车玩法。 |
+| 后续 | **乡村道路、限速与禁超标线** | 弯道前降速，识别限速和实黄禁超线，不把建议弯道速度当成统一限速。 | 需要足够长的可视距离与更丰富的路况，优先做判断题和低速场景，暂不做高速超车物理模拟。 |
 
 **范围建议**：第一轮只把窄桥、真实行人及右转让行做扎实；合流和铁路道口作为第二轮。学校巴士限速、夜间/雨雪、复杂多车道环岛与高速公路留待地图和 NPC 行为稳定后再考虑。
+
+各场景的标志与具体判分须在制作时逐项对照新西兰交通局 [General Road Code](https://www.nzta.govt.nz/roadcode/general-road-code/)；不能仅凭本扩展清单当作交通法规。

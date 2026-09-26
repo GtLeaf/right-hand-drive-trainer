@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "python3 -m http.server 5173",
-    "check": "node --check src/data.js && node --check src/rules.js && node --check src/render.js && node --check src/game.js && node --check sw.js",
+    "check": "node --check src/data.js && node --check src/rules.js && node --check src/render.js && node --check src/npc.js && node --check src/game.js && node --check sw.js",
     "test": "node --test",
     "smoke": "node tools/browser-smoke.mjs"
   },
