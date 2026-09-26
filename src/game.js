@@ -407,6 +407,9 @@ function bindControls() {
 }
 
 function bindPage() {
+  document.getElementById('app').addEventListener('contextmenu', event => {
+    if (window.matchMedia('(pointer: coarse)').matches) event.preventDefault();
+  });
   elements['level-list'].addEventListener('click', event => {
     const button = event.target.closest('[data-level]');
     if (button && !button.disabled) startLevel(Number(button.dataset.level));

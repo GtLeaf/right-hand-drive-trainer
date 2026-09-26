@@ -268,7 +268,7 @@ function drawLights(context, time, region) {
   }
 }
 
-function drawCar(context, vehicle, color, player = false) {
+function drawCar(context, vehicle, color, time, player = false, braking = false) {
   context.save();
   context.translate(vehicle.x, vehicle.y);
   context.rotate(vehicle.angle);
@@ -285,15 +285,27 @@ function drawCar(context, vehicle, color, player = false) {
   context.fillStyle = '#fff4cb';
   context.fillRect(-9, -19, 5, 3);
   context.fillRect(4, -19, 5, 3);
+  context.fillStyle = braking ? '#ff554b' : '#914941';
+  if (braking) {
+    context.shadowColor = '#ff554b';
+    context.shadowBlur = 9;
+  }
+  context.fillRect(-7, 16, 5, 3);
+  context.fillRect(2, 16, 5, 3);
+  context.shadowBlur = 0;
   if (player) {
     circle(context, 5, -4, 3, '#1d4b42');
     context.strokeStyle = '#fff1b9';
     context.lineWidth = 2;
     context.strokeRect(-14, -22, 28, 44);
   }
-  if (vehicle.signal) {
-    const blink = Math.floor(vehicle.clock * 3) % 2 === 0;
-    if (blink) circle(context, vehicle.signal === 'left' ? -10 : 10, -17, 3, '#ffdc67');
+  if (vehicle.signal && Math.floor(time * 3) % 2 === 0) {
+    const indicatorX = vehicle.signal === 'left' ? -11 : 8;
+    context.fillStyle = '#ffdc67';
+    context.shadowColor = '#ffc04e';
+    context.shadowBlur = 8;
+    context.fillRect(indicatorX, -18, 3, 5);
+    context.fillRect(indicatorX, 14, 3, 5);
   }
   context.restore();
 }
@@ -324,8 +336,8 @@ export function render(context, game, width, height) {
   drawStopAndGiveWay(context, game.region);
   drawLights(context, game.elapsed, game.region);
   drawMarkers(context, game);
-  for (const npc of game.npcs) drawCar(context, npc, npc.color);
-  drawCar(context, game.car, COLORS.player, true);
+  for (const npc of game.npcs) drawCar(context, npc, npc.color, game.elapsed, false, npc.state !== 'cruise');
+  drawCar(context, game.car, COLORS.player, game.elapsed, true, game.input.brake);
   context.restore();
   context.strokeStyle = '#ffffff33';
   context.lineWidth = 1;

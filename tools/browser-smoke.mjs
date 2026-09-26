@@ -98,6 +98,63 @@ try {
   mobilePage.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await mobilePage.goto('http://localhost:5173/');
   await mobilePage.locator('[data-level="1"]').click();
+  const touchBehavior = await mobilePage.evaluate(() => {
+    const label = document.querySelector('.control-label');
+    const brake = document.querySelector('#brake');
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    brake.dispatchEvent(event);
+    return { selection: getComputedStyle(label).userSelect, contextPrevented: event.defaultPrevented };
+  });
+  assert.deepEqual(touchBehavior, { selection: 'none', contextPrevented: true });
+  await mobilePage.locator('#signal-left').click();
+  assert.equal(await mobilePage.locator('#signal-left').getAttribute('aria-pressed'), 'true');
+  await mobilePage.locator('#signal-right').click();
+  assert.equal(await mobilePage.locator('#signal-left').getAttribute('aria-pressed'), 'false');
+  assert.equal(await mobilePage.locator('#signal-right').getAttribute('aria-pressed'), 'true');
+  const lampColors = await mobilePage.evaluate(async () => {
+    const [{ render }, { REGIONS }] = await Promise.all([import('./src/render.js'), import('./src/data.js')]);
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 600;
+    const context = canvas.getContext('2d');
+    const pixel = (pixelX, pixelY) => [...context.getImageData(pixelX, pixelY, 1, 1).data];
+    const sample = (signal, brake, elapsed) => {
+      render(context, { car: { x: 185, y: 650, angle: 0, signal }, region: REGIONS.nz,
+        elapsed, level: { id: 7 }, input: { brake }, npcs: [] }, 600, 600);
+      return { leftFront: pixel(287, 350), rightFront: pixel(312, 350),
+        leftRear: pixel(287, 391), rightRear: pixel(312, 391),
+        leftBrake: pixel(294, 393), rightBrake: pixel(305, 393) };
+    };
+    return { off: sample(null, false, 0), left: sample('left', false, 0),
+      right: sample('right', false, 0), blinkOff: sample('left', false, .4),
+      brake: sample(null, true, 0), both: sample('left', true, 0) };
+  });
+  assert.ok(lampColors.left.leftFront[0] > 240 && lampColors.left.leftRear[0] > 240);
+  assert.ok(lampColors.right.rightFront[0] > 240 && lampColors.right.rightRear[0] > 240);
+  assert.ok(lampColors.left.rightFront[0] < 150 && lampColors.right.leftFront[0] < 150);
+  assert.ok(lampColors.blinkOff.leftFront[0] < 150);
+  assert.ok(lampColors.brake.leftBrake[0] > lampColors.off.leftBrake[0] + 90);
+  assert.ok(lampColors.brake.rightBrake[0] > lampColors.off.rightBrake[0] + 90);
+  assert.ok(lampColors.both.leftFront[0] > 240 && lampColors.both.leftBrake[0] > 240);
+  const rearLightRed = () => mobilePage.evaluate(() => {
+    const canvas = document.querySelector('#game-canvas');
+    const bounds = canvas.getBoundingClientRect();
+    const ratio = canvas.width / bounds.width;
+    const scale = Math.max(.6, Math.min(1.25, bounds.height / 370));
+    const pixelX = Math.round((bounds.width / 2 - 5 * scale) * ratio);
+    const pixelY = Math.round((bounds.height * .62 + 17 * scale) * ratio);
+    return canvas.getContext('2d').getImageData(pixelX, pixelY, 1, 1).data[0];
+  });
+  const brakeOffRed = await rearLightRed();
+  const brake = mobilePage.locator('#brake');
+  const brakeBounds = await brake.boundingBox();
+  assert.ok(brakeBounds);
+  await mobilePage.mouse.move(brakeBounds.x + brakeBounds.width / 2, brakeBounds.y + brakeBounds.height / 2);
+  await mobilePage.mouse.down();
+  assert.match(await brake.getAttribute('class'), /pressed/);
+  await mobilePage.waitForTimeout(80);
+  assert.ok(await rearLightRed() > brakeOffRed + 90);
+  await mobilePage.mouse.up();
   const throttle = mobilePage.locator('#throttle');
   const box = await throttle.boundingBox();
   assert.ok(box && box.width >= 50 && box.height >= 60);
@@ -124,7 +181,7 @@ try {
   await portrait.close();
 
   assert.deepEqual(errors, []);
-  console.log('通过：首关通关、STOP 违规、T 字口、信号方向、地区切换、自由关不中断、离线重开并切英国、横竖屏布局；无页面异常。');
+  console.log('通过：首关、STOP、路口灯号、手机防长按选字、转向/刹车灯、自由关、离线切英国及横竖屏；无页面异常。');
 } finally {
   await browser.close();
 }
