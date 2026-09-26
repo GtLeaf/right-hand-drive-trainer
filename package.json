@@ -1,0 +1,14 @@
+{
+  "name": "right-side-ready",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "check": "node --check src/data.js && node --check src/rules.js && node --check src/render.js && node --check src/game.js && node --check sw.js",
+    "test": "node --test",
+    "smoke": "node tools/browser-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

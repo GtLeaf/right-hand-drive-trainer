@@ -1,0 +1,116 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright-core';
+
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const errors = [];
+
+try {
+  const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await desktop.newPage();
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.goto('http://localhost:5173/');
+  assert.equal(await page.locator('#level-list .level-card').count(), 7);
+  assert.equal(await page.locator('#play').isVisible(), false);
+  assert.equal(await page.locator('[data-level="7"]').isDisabled(), true);
+
+  await page.locator('[data-level="1"]').click();
+  assert.equal(await page.locator('#play').isVisible(), true);
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('ArrowUp');
+  assert.ok(Number(await page.locator('#speed').innerText()) > 0);
+  await page.screenshot({ path: 'tools/desktop-preview.png' });
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(3600);
+  await page.keyboard.up('ArrowUp');
+  assert.equal(await page.locator('#dialog-title').innerText(), '安全抵达');
+  await page.locator('#dialog-secondary').click();
+  assert.equal(await page.locator('[data-level="2"]').isDisabled(), false);
+  await page.locator('[data-level="2"]').click();
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(2450);
+  await page.keyboard.up('ArrowUp');
+  assert.equal(await page.locator('#dialog-title').innerText(), '这次先停一下');
+  assert.match(await page.locator('#dialog-body').innerText(), /STOP/);
+  await page.locator('#dialog-secondary').click();
+  await page.locator('[data-region="uk"]').click();
+  assert.match(await page.locator('#region-caption').innerText(), /UNITED KINGDOM/);
+  await page.locator('[data-region="nz"]').click();
+  await page.evaluate(() => localStorage.setItem('right-side-ready-progress-v1', JSON.stringify({ nz: 6, uk: 0 })));
+  await page.reload();
+  assert.equal(await page.locator('[data-level="7"]').isDisabled(), false);
+  await page.locator('[data-level="7"]').click();
+  assert.equal(await page.locator('#mini-map').isVisible(), true);
+  await page.screenshot({ path: 'tools/free-preview.png' });
+  await page.locator('#density-button').click();
+  assert.equal(await page.locator('#density-button').innerText(), '车流：低');
+  await page.locator('#density-button').click();
+  await page.locator('#mini-toggle').click();
+  assert.equal(await page.locator('#mini-map').isVisible(), false);
+  await page.locator('#mini-toggle').click();
+
+  await page.keyboard.down('ArrowUp');
+  await page.keyboard.down('ArrowRight');
+  await page.waitForTimeout(1600);
+  await page.keyboard.up('ArrowRight');
+  await page.waitForTimeout(2000);
+  await page.keyboard.up('ArrowUp');
+  assert.equal(await page.locator('#game-dialog').isVisible(), false);
+  await page.locator('#review-button').click();
+  const review = await page.locator('#dialog-title').innerText();
+  assert.match(review, /[1-9]\d* 条提示/);
+  await page.locator('#dialog-primary').click();
+  await page.locator('#restart-button').click();
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(4900);
+  await page.keyboard.up('ArrowUp');
+  assert.equal(await page.locator('#game-dialog').isVisible(), false);
+  await page.locator('#review-button').click();
+  assert.match(await page.locator('#dialog-body').innerText(), /STOP/);
+  await page.locator('#dialog-primary').click();
+  await page.locator('#back-button').click();
+  await page.waitForFunction(() => document.querySelector('#offline-status').textContent.includes('已就绪'));
+  await desktop.setOffline(true);
+  await page.reload();
+  assert.equal(await page.locator('#level-list .level-card').count(), 7);
+  await page.locator('[data-level="7"]').click();
+  assert.equal(await page.locator('#play').isVisible(), true);
+  await desktop.close();
+
+  const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+  const mobilePage = await mobile.newPage();
+  mobilePage.on('pageerror', error => errors.push(error.message));
+  mobilePage.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await mobilePage.goto('http://localhost:5173/');
+  await mobilePage.locator('[data-level="1"]').click();
+  const throttle = mobilePage.locator('#throttle');
+  const box = await throttle.boundingBox();
+  assert.ok(box && box.width >= 50 && box.height >= 60);
+  await mobilePage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await mobilePage.mouse.down();
+  await mobilePage.waitForTimeout(650);
+  await mobilePage.mouse.up();
+  assert.ok(Number(await mobilePage.locator('#speed').innerText()) > 0);
+  await mobilePage.screenshot({ path: 'tools/mobile-preview.png' });
+  assert.equal(await mobilePage.locator('#game-canvas').isVisible(), true);
+  await mobile.close();
+
+  const portrait = await browser.newContext({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
+  const portraitPage = await portrait.newPage();
+  portraitPage.on('pageerror', error => errors.push(error.message));
+  portraitPage.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await portraitPage.goto('http://localhost:5173/');
+  await portraitPage.screenshot({ path: 'tools/home-preview.png' });
+  await portraitPage.locator('[data-level="1"]').click();
+  const controlBounds = await portraitPage.locator('#drive-controls').boundingBox();
+  const throttleBounds = await portraitPage.locator('#throttle').boundingBox();
+  assert.ok(controlBounds && throttleBounds && throttleBounds.x + throttleBounds.width <= controlBounds.x + controlBounds.width);
+  await portraitPage.screenshot({ path: 'tools/portrait-preview.png' });
+  await portrait.close();
+
+  assert.deepEqual(errors, []);
+  console.log('通过：首关通关、STOP 违规、地区切换、自由关不中断、离线重开、横竖屏布局；无页面异常。');
+} finally {
+  await browser.close();
+}

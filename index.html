@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#183c35" />
+    <meta name="description" content="手机上练习新西兰左侧通行、路口让行、环岛和红绿灯的离线小游戏。" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>左行练习 · Right Side Ready</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <button class="brand" id="home-button" type="button" aria-label="回到关卡选择">
+          <span class="brand-mark" aria-hidden="true">↶</span>
+          <span><strong>左行练习</strong><small>RIGHT SIDE READY</small></span>
+        </button>
+        <div class="region-switch" role="group" aria-label="选择驾驶地区">
+          <button type="button" data-region="nz" class="active">新西兰 NZ</button>
+          <button type="button" data-region="uk">英国 UK</button>
+        </div>
+      </header>
+
+      <main id="home" class="home">
+        <section class="intro">
+          <div class="eyebrow"><span class="eyebrow-line"></span> MOBILE DRIVING FIELD GUIDE · 01</div>
+          <h1>习惯靠左，<br /><em>从这里开始。</em></h1>
+          <p>出发前，用几分钟练习路口判断、转向灯和右侧驾驶位的视角习惯。慢一点，安全一点。</p>
+          <div class="intro-pills"><span>俯视练习</span><span>双拇指操作</span><span>可离线游玩</span></div>
+          <div class="intro-footer"><span id="offline-status">正在准备离线资源…</span><span>非真实驾驶培训</span></div>
+        </section>
+        <section class="levels-panel">
+          <div class="section-head"><div><span class="overline" id="region-caption">NEW ZEALAND · ROAD CODE</span><h2>选择练习</h2></div><span class="level-count">01 — 07</span></div>
+          <div id="level-list" class="level-list"></div>
+          <div class="panel-note"><span class="note-dot"></span>先完成前六关，再进入不限时的自由小镇。</div>
+        </section>
+      </main>
+
+      <main id="play" class="play" hidden>
+        <div class="play-bar">
+          <button type="button" id="back-button" class="text-button">← 关卡</button>
+          <div class="play-title"><span id="play-index">01 / 07</span><strong id="play-name">左侧起步</strong></div>
+          <div class="play-actions"><button type="button" id="restart-button" class="icon-button" aria-label="重新开始">↻</button><button type="button" id="pause-button" class="icon-button" aria-label="暂停">Ⅱ</button></div>
+        </div>
+        <div class="stage" id="stage">
+          <canvas id="game-canvas" aria-label="俯视驾驶地图"></canvas>
+          <div class="hud hud-left"><span id="mission-label">前往标记点</span><strong id="mission-text">沿左侧车道行驶</strong></div>
+          <div class="hud hud-right"><span>时速</span><strong><span id="speed">0</span><small> km/h</small></strong></div>
+          <div id="toast" class="toast" role="status" aria-live="polite"></div>
+          <div id="status-banner" class="status-banner"></div>
+          <canvas id="mini-map" class="mini-map" aria-label="自由练习小地图" hidden></canvas>
+          <div class="compass" aria-hidden="true"><span>驾驶位</span><strong>R</strong></div>
+          <div id="game-dialog" class="game-dialog" hidden>
+            <div class="dialog-card"><span id="dialog-kicker" class="overline">练习暂停</span><h2 id="dialog-title">继续练习</h2><p id="dialog-body"></p><div class="dialog-actions"><button type="button" id="dialog-secondary" class="ghost-button">返回关卡</button><button type="button" id="dialog-primary" class="solid-button">继续</button></div></div>
+          </div>
+        </div>
+        <div class="drive-controls" id="drive-controls">
+          <div class="steer-zone"><span class="control-label">转向 · 左拇指</span><div id="steer-track" class="steer-track" role="slider" aria-label="转向" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" tabindex="0"><span class="steer-mid"></span><span id="steer-knob" class="steer-knob"></span></div><span class="steer-ends"><span>左</span><span>右</span></span></div>
+          <div class="indicators"><span class="control-label">转向灯</span><div class="indicator-pair"><button type="button" id="signal-left" aria-label="左转向灯">◀</button><button type="button" id="signal-right" aria-label="右转向灯">▶</button></div></div>
+          <div class="pedals"><button type="button" id="brake" class="pedal brake"><span>刹车</span><small>BRAKE</small></button><button type="button" id="throttle" class="pedal throttle"><span>油门</span><small>GO</small></button></div>
+        </div>
+        <div class="bottom-strip"><span id="control-hint">键盘：方向键 / WASD，Q、E 转向灯，空格刹车</span><button type="button" id="density-button">车流：标准</button><button type="button" id="mini-toggle" hidden>隐藏小地图</button><button type="button" id="review-button" hidden>查看本次练习</button></div>
+      </main>
+    </div>
+    <script type="module" src="./src/game.js"></script>
+  </body>
+</html>
