@@ -1,10 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BRIDGE, CONTROL_POINTS, REGIONS, SIGNAL_APPROACHES, WORLD } from '../src/data.js';
+import { BRIDGE, CONTROL_POINTS, LEVELS, REGIONS, SIGNAL_APPROACHES, WORLD } from '../src/data.js';
 import { createNpcs, npcRoutes, sampleRoute, updateNpcs } from '../src/npc.js';
 import { crossesControl, distance, isOnRoad, signalForApproach } from '../src/rules.js';
 
 for (const region of Object.values(REGIONS)) {
+  test(`${region.code} 所有关卡的玩家与 NPC 都从环岛外起步`, () => {
+    for (const level of LEVELS) {
+      assert.ok(distance(level.start, WORLD.roundabout) >= WORLD.roundabout.outer + 20, `player level ${level.id}`);
+      for (const density of ['low', 'normal']) {
+        const npcs = createNpcs(level.id, density, region);
+        for (const npc of npcs) {
+          assert.ok(distance(npc, WORLD.roundabout) >= WORLD.roundabout.outer + 20, `npc ${npc.id}, level ${level.id}, ${density}`);
+          assert.ok(distance(npc, level.start) >= 40, `overlapping player: ${npc.id}, level ${level.id}`);
+        }
+      }
+    }
+  });
+
+  test(`${region.code} 全关卡低/标准车流中的每辆 NPC 持续存在且不跳位`, () => {
+    for (const level of LEVELS) for (const density of ['low', 'normal']) {
+      const npcs = createNpcs(level.id, density, region);
+      const originals = [...npcs];
+      const laps = new Map(npcs.map(npc => [npc.id, 0]));
+      for (let frame = 0; frame < 18000; frame += 1) {
+        const positions = npcs.map(npc => ({ x: npc.x, y: npc.y, progress: npc.progress }));
+        updateNpcs(npcs, 1 / 60, frame / 60, region, { x: 75, y: 75 });
+        assert.equal(npcs.length, originals.length);
+        for (const [index, npc] of npcs.entries()) {
+          assert.equal(npc, originals[index], `disappeared: ${region.code}, level ${level.id}, ${density}, ${index}`);
+          assert.ok(distance(npc, positions[index]) <= npc.cruiseSpeed / 60 + .01, `jumped: ${region.code}, level ${level.id}, ${density}, ${index}`);
+          if (npc.progress < positions[index].progress) laps.set(npc.id, laps.get(npc.id) + 1);
+        }
+      }
+      for (const npc of npcs) assert.ok(laps.get(npc.id) >= 2, `loop stalled: ${region.code}, level ${level.id}, ${density}, ${npc.id}`);
+    }
+  });
+
   test(`${region.code} 三条 NPC 路线沿道路闭合并进出环岛`, () => {
     const routes = npcRoutes(region);
     assert.equal(routes.length, 3);

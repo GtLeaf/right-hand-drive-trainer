@@ -110,8 +110,8 @@ export function createNpcs(levelId, density, region) {
   const routes = npcRoutes(region);
   const entries = levelId === 2 || levelId === 3 ? [[0, .24]]
     : levelId === 4 ? [[0, .33], [0, .68]]
-      : levelId === 5 ? [[1, .72], [2, .15]]
-        : [[0, .24], [1, .26], [2, .54], [0, .75]];
+      : levelId === 5 ? [[1, .8], [2, .15]]
+        : [[0, .24], [1, .26], [2, .54], [0, .85]];
   return (density === 'low' ? entries.slice(0, 2) : entries).map(([routeIndex, offset], index) => {
     const route = routes[routeIndex];
     const progress = route.length * offset;

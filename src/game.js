@@ -433,9 +433,7 @@ function bindPage() {
   elements['density-button'].addEventListener('click', () => {
     if (!game) return;
     game.density = game.density === 'normal' ? 'low' : 'normal';
-    game.npcs = createNpcs(game.level.id, game.density, game.region)
-      .map(candidate => game.npcs.find(existing => existing.id === candidate.id) || candidate);
-    elements['density-button'].textContent = `车流：${game.density === 'low' ? '低' : '标准'}`;
+    elements['density-button'].textContent = `车流：${game.density === 'low' ? '低' : '标准'}（重开生效）`;
   });
   window.addEventListener('resize', resizeCanvas);
 }

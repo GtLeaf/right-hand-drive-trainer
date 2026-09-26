@@ -52,9 +52,40 @@ try {
   await page.locator('[data-level="7"]').click();
   assert.equal(await page.locator('#mini-map').isVisible(), true);
   await page.screenshot({ path: 'tools/free-preview.png' });
+  await page.evaluate(() => {
+    const context = document.querySelector('#game-canvas').getContext('2d');
+    const clearRect = context.clearRect;
+    const roundRect = context.roundRect;
+    context.clearRect = function (...args) {
+      this.carDraws = 0;
+      return clearRect.apply(this, args);
+    };
+    context.roundRect = function (...args) {
+      this.carDraws += 1;
+      return roundRect.apply(this, args);
+    };
+  });
+  const drawnCars = () => page.evaluate(() => document.querySelector('#game-canvas').getContext('2d').carDraws);
+  await page.waitForTimeout(80);
+  assert.equal(await drawnCars(), 5);
   await page.locator('#density-button').click();
+  assert.equal(await page.locator('#density-button').innerText(), '车流：低（重开生效）');
+  await page.waitForTimeout(80);
+  assert.equal(await drawnCars(), 5);
+  await page.locator('#density-button').click();
+  assert.equal(await page.locator('#density-button').innerText(), '车流：标准（重开生效）');
+  await page.waitForTimeout(80);
+  assert.equal(await drawnCars(), 5);
+  await page.locator('#density-button').click();
+  await page.locator('#restart-button').click();
   assert.equal(await page.locator('#density-button').innerText(), '车流：低');
+  await page.waitForTimeout(80);
+  assert.equal(await drawnCars(), 3);
   await page.locator('#density-button').click();
+  await page.locator('#restart-button').click();
+  assert.equal(await page.locator('#density-button').innerText(), '车流：标准');
+  await page.waitForTimeout(80);
+  assert.equal(await drawnCars(), 5);
   await page.locator('#mini-toggle').click();
   assert.equal(await page.locator('#mini-map').isVisible(), false);
   await page.locator('#mini-toggle').click();
@@ -181,7 +212,7 @@ try {
   await portrait.close();
 
   assert.deepEqual(errors, []);
-  console.log('通过：首关、STOP、路口灯号、手机防长按选字、转向/刹车灯、自由关、离线切英国及横竖屏；无页面异常。');
+  console.log('通过：首关、STOP、路口灯号、车流切换不闪现、手机触控/车灯、自由关、离线切英国及横竖屏；无页面异常。');
 } finally {
   await browser.close();
 }
