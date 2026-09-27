@@ -1,0 +1,15 @@
+# Right Side Ready 发布图标
+
+使用内置 image_gen 生成；采用最终修订版。保留原图，并导出 1024、512、192 像素 PNG，供发布使用。图案为深绿底、黄色俯视汽车、右側方向盘和位于车右侧的道路中心虚线，表达右舵与靠左行驶。
+
+## 初始提示词
+
+Use case: logo-brand.
+Asset type: publication-ready app icon for a New Zealand right-hand-drive, keep-left driving practice tool called Right Side Ready. Generate ONE finished square icon, not a presentation sheet.
+Primary request: an instantly recognizable, beautifully crafted top-down golden-yellow compact car driving UPWARD in the LEFT lane of a simplified two-way road. Make it feel friendly, confident, educational, and premium.
+Composition: full-bleed opaque deep forest-green square background (#123b34), no outer rounded square, no frame or external margins. A broad slightly lighter evergreen road (#365b50) forms a restrained vertical graphic through the center. A short bold ivory dashed road centerline is to the RIGHT of the car, making left-side driving unmistakable. The car is the dominant symbol, centered around x=40%, y=51%, about 32% of canvas width and 52% of canvas height. Its front faces the TOP of the image: ivory headlights at the top, dark wide windshield toward the top, tiny warm red taillights at bottom. Within the broad front windshield, include one tasteful small ivory steering-wheel ring on the vehicle's RIGHT side (image right); keep this secondary detail simple. A few strong shapes, generous breathing room, optically balanced with the road line. Keep all essential car and centerline details within the central 76% area, suitable for circular and rounded-square launcher masks.
+Style: precise geometric vector-like illustration with gently rounded forms and very subtle dimensional shading, crisp silhouette, meticulous edges. Golden car #edb246, warm ivory #f7f1db accents, muted teal windshield. Excellent legibility at small app-icon sizes. No texture, no photorealism, no scenery, no intersection, no traffic lights, no arrows, no extra cars, no map pins, no letters, no words, no logo text, no watermark, no mockup. 1024 x 1024 square image.
+
+## 最终修订提示词
+
+Edit this generated application icon for final publication. Keep the golden top-down car, its upward direction, the ivory steering wheel on the RIGHT side of the windshield, and the ivory road centerline to the RIGHT of the car. Preserve this visual identity. Fix ONLY background and composition: output a complete SQUARE icon with a SOLID OPAQUE deep forest green #123b34 background extending all the way to ALL FOUR CORNERS and ALL FOUR EDGES. NO TRANSPARENCY anywhere. Eliminate the transparent/black side areas, the mottled empty patches at top and bottom, the glow, and texture. A restrained lighter forest green vertical road can remain, with clean edges, against the solid dark green square. Reduce the car slightly so it fits entirely within the central 70% of the square, with generous top and bottom padding for circular app-icon masks. Keep the silhouette boldly readable. Clean, polished flat geometric illustration, subtle shading only on the car, solid even colors, no text, no mockup, no external margins, no rounded outer corners. Finished full-bleed square opaque app icon.

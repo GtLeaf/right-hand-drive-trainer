@@ -12,7 +12,7 @@
   </head>
   <body>
     <div id="app">
-      <header class="topbar">
+      <header class="topbar" id="topbar">
         <button class="brand" id="home-button" type="button" aria-label="回到关卡选择">
           <span class="brand-mark" aria-hidden="true">↶</span>
           <span><strong>左行练习</strong><small>RIGHT SIDE READY</small></span>
@@ -21,6 +21,7 @@
           <button type="button" data-region="nz" class="active">新西兰 NZ</button>
           <button type="button" data-region="uk">英国 UK</button>
         </div>
+        <button type="button" id="topbar-toggle" class="topbar-toggle" aria-controls="topbar" aria-expanded="true" aria-label="收起标题栏">⌃</button>
       </header>
 
       <main id="home" class="home">
@@ -47,7 +48,7 @@
         <div class="stage" id="stage">
           <canvas id="game-canvas" aria-label="俯视驾驶地图"></canvas>
           <div class="hud hud-left"><span id="mission-label">前往标记点</span><strong id="mission-text">沿左侧车道行驶</strong></div>
-          <div class="hud hud-right"><span>时速</span><strong><span id="speed">0</span><small> km/h</small></strong></div>
+          <div class="hud hud-right"><strong><span id="speed">0</span><small>km/h</small></strong></div>
           <div id="toast" class="toast" role="status" aria-live="polite"></div>
           <div id="status-banner" class="status-banner"></div>
           <canvas id="mini-map" class="mini-map" aria-label="自由练习小地图" hidden></canvas>

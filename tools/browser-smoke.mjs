@@ -60,6 +60,18 @@ try {
   await page.locator('#back-button').click();
   await page.locator('[data-level="8"]').click();
   assert.equal(await page.locator('#mini-map').isVisible(), true);
+  assert.equal(await page.locator('.hud-left').evaluate(node => getComputedStyle(node).display), 'none');
+  assert.match((await page.locator('.hud-right').innerText()).replace(/\s+/g, ''), /^\d+km\/h$/);
+  const miniMapBox = await page.locator('#mini-map').boundingBox();
+  const stageBox = await page.locator('#stage').boundingBox();
+  assert.ok(miniMapBox && stageBox && miniMapBox.x <= stageBox.x + 14 && miniMapBox.y <= stageBox.y + 14);
+  await page.locator('#topbar-toggle').click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator('#topbar-toggle').getAttribute('aria-expanded'), 'false');
+  assert.ok((await page.locator('#topbar').boundingBox()).height <= 31);
+  await page.locator('#topbar-toggle').click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator('#topbar-toggle').getAttribute('aria-expanded'), 'true');
   await page.screenshot({ path: 'tools/free-preview.png' });
   await page.evaluate(() => {
     const context = document.querySelector('#game-canvas').getContext('2d');

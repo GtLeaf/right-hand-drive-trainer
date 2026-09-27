@@ -4,7 +4,7 @@ import { createNpcs, updateNpcs } from './npc.js';
 import { render, renderMiniMap } from './render.js';
 
 const elements = Object.fromEntries([
-  'home', 'play', 'home-button', 'back-button', 'restart-button', 'pause-button',
+  'home', 'play', 'topbar', 'topbar-toggle', 'stage', 'home-button', 'back-button', 'restart-button', 'pause-button',
   'level-list', 'region-caption', 'game-canvas', 'mini-map', 'mini-toggle', 'mission-label',
   'mission-text', 'play-index', 'play-name', 'speed', 'toast', 'status-banner',
   'game-dialog', 'dialog-kicker', 'dialog-title', 'dialog-body', 'dialog-primary',
@@ -25,6 +25,7 @@ let game = null;
 let lastFrame = 0;
 let dialogPrimary = () => {};
 let dialogSecondary = () => {};
+let topbarCollapsed = false;
 
 function readProgress() {
   try {
@@ -82,6 +83,7 @@ function setRegion(next) {
 function showHome() {
   clearControls();
   game = null;
+  elements.stage.classList.remove('free-mode');
   elements['game-dialog'].hidden = true;
   elements.play.hidden = true;
   elements.home.hidden = false;
@@ -103,6 +105,7 @@ function startLevel(id) {
   };
   elements.home.hidden = true;
   elements.play.hidden = false;
+  elements.stage.classList.toggle('free-mode', level.free);
   elements['game-dialog'].hidden = true;
   elements['play-index'].textContent = `${String(id).padStart(2, '0')} / ${String(LEVELS.length).padStart(2, '0')} · ${game.region.code}`;
   elements['play-name'].textContent = level.title;
@@ -528,6 +531,13 @@ function bindPage() {
   });
   document.querySelectorAll('[data-region]').forEach(button => button.addEventListener('click', () => setRegion(button.dataset.region)));
   elements['home-button'].addEventListener('click', showHome);
+  elements['topbar-toggle'].addEventListener('click', () => {
+    topbarCollapsed = !topbarCollapsed;
+    elements.topbar.classList.toggle('collapsed', topbarCollapsed);
+    elements['topbar-toggle'].setAttribute('aria-expanded', String(!topbarCollapsed));
+    elements['topbar-toggle'].setAttribute('aria-label', topbarCollapsed ? '展开标题栏' : '收起标题栏');
+    elements['topbar-toggle'].textContent = topbarCollapsed ? '⌄' : '⌃';
+  });
   elements['back-button'].addEventListener('click', showHome);
   elements['restart-button'].addEventListener('click', () => { if (game) startLevel(game.level.id); });
   elements['pause-button'].addEventListener('click', () => {
