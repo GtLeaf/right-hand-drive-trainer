@@ -1,8 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BRIDGE, CONTROL_POINTS, LEVELS, REGIONS, SIGNAL_APPROACHES, WORLD } from '../src/data.js';
+import { BRIDGE, COMPLEX_T, CONTROL_POINTS, LEVELS, REGIONS, SIGNAL_APPROACHES, WORLD } from '../src/data.js';
 import { createNpcs, npcRoutes, sampleRoute, updateNpcs } from '../src/npc.js';
-import { crossesControl, distance, isOnRoad, signalForApproach } from '../src/rules.js';
+import { crossesControl, crossesFront, distance, inBridgeCorridor, inComplexMedian, isOnRoad, wrongSide, signalForApproach } from '../src/rules.js';
+
+test('窄桥同时到达时优先端先行，预留覆盖引道且双方最终通过', () => {
+  for (const reverse of [false, true]) {
+    const npcs = createNpcs(7, 'normal', REGIONS.nz).filter(npc => npc.route.id.startsWith('lower-'));
+    if (reverse) npcs.reverse();
+    for (const npc of npcs) {
+      const name = npc.route.id === 'lower-east' ? 'bridge-west' : 'bridge-east';
+      npc.progress = npc.route.markers.find(marker => marker.name === name).at - 3;
+      Object.assign(npc, sampleRoute(npc.route, npc.progress), { speed: 0 });
+    }
+    const admitted = [];
+    const cleared = new Set();
+    for (let frame = 0; frame < 1800; frame++) {
+      updateNpcs(npcs, 1 / 60, frame / 60, REGIONS.nz, { x: 75, y: 75 });
+      const reserved = npcs.filter(npc => npc.bridgeDirection);
+      assert.ok(reserved.length <= 1, '双向车辆同时获准驶入桥头');
+      assert.ok(npcs.filter(inBridgeCorridor).length <= 1, '双向车辆同时占用引道');
+      for (const npc of reserved) if (!admitted.includes(npc.route.id)) admitted.push(npc.route.id);
+      for (const npc of npcs) if (admitted.includes(npc.route.id) && !npc.bridgeDirection) cleared.add(npc.route.id);
+      if (cleared.size === 2) break;
+    }
+    assert.deepEqual(admitted, ['lower-west', 'lower-east']);
+    assert.equal(cleared.size, 2, '双方都应驶出桥头，释放通行预留');
+  }
+});
 
 for (const region of Object.values(REGIONS)) {
   test(`${region.code} 所有关卡的玩家与 NPC 都从环岛外起步`, () => {
@@ -37,9 +62,9 @@ for (const region of Object.values(REGIONS)) {
     }
   });
 
-  test(`${region.code} 三条 NPC 路线沿道路闭合并进出环岛`, () => {
+  test(`${region.code} 六条 NPC 路线沿道路闭合并进出环岛`, () => {
     const routes = npcRoutes(region);
-    assert.equal(routes.length, 3);
+    assert.equal(routes.length, 6);
     for (const route of routes) {
       assert.ok(route.length > 900, route.id);
       assert.ok(route.markers.some(marker => marker.name === 'ring-exit'), route.id);
@@ -58,6 +83,12 @@ for (const region of Object.values(REGIONS)) {
 
   test(`${region.code} 十分钟 NPC 不瞬移、不闯红灯、不互锁`, () => {
     const npcs = createNpcs(7, 'normal', region);
+    // 明确安排双向车同时到桥头，验证让行而不依赖循环路线的偶然会车时机。
+    if (region.bridge) for (const npc of npcs.filter(npc => npc.route.id.startsWith('lower-'))) {
+      const name = npc.route.id === 'lower-east' ? 'bridge-west' : 'bridge-east';
+      npc.progress = npc.route.markers.find(marker => marker.name === name).at - 3;
+      Object.assign(npc, sampleRoute(npc.route, npc.progress), { speed: 0 });
+    }
     const player = { x: 75, y: 75 };
     const laps = new Map(npcs.map(npc => [npc.id, 0]));
     const stationary = new Map(npcs.map(npc => [npc.id, 0]));
@@ -79,16 +110,19 @@ for (const region of Object.values(REGIONS)) {
         if (npc.progress < prior.progress) laps.set(npc.id, laps.get(npc.id) + 1);
         const frozen = npc.progress === prior.progress ? stationary.get(npc.id) + 1 : 0;
         stationary.set(npc.id, frozen);
-        assert.ok(frozen < 15 * 60, `stalled: ${npc.id}`);
+        // NZ 新增箭头相位，直行队列可等待一个完整灯周期。
+        const limit = SIGNAL_APPROACHES.some(item => item.id === npc.waiting) ? 40 : 15;
+        assert.ok(frozen < limit * 60, `stalled: ${npc.id}`);
         if (npc.waiting === 'bridge-west') bridgeWaits += 1;
         if (npc.route.id === 'town') {
           if (!prior.servedStop && npc.servedStop) stopVisits.set(npc.id, stopVisits.get(npc.id) + 1);
-          if (crossesControl(prior, npc, stop)) {
+          if (crossesFront(prior, npc, stop)) {
             assert.equal(prior.servedStop, 'stop-t');
             stopPasses.set(npc.id, stopPasses.get(npc.id) + 1);
           }
-          if (crossesControl(prior, npc, eastbound)) {
-            assert.equal(signalForApproach(elapsed, region, eastbound), 'green');
+          if (crossesFront(prior, npc, eastbound)) {
+            const light = signalForApproach(elapsed, region, eastbound);
+            assert.ok(light === 'green' || light === 'amber' && npc.signalMemory?.stopOnAmber === false, 'unsafe signal crossing');
           }
         }
         for (const other of npcs.slice(index + 1)) assert.ok(distance(npc, other) >= 24, `collision: ${npc.id} / ${other.id}`);
@@ -108,17 +142,76 @@ for (const region of Object.values(REGIONS)) {
   });
 }
 
-test('NPC 在 STOP 线前按实际帧时长停满 0.8 秒', () => {
+test('NPC 在 STOP 线前完全停止后再放行，不把固定等待秒数当成交规', () => {
   const npc = createNpcs(2, 'normal', REGIONS.nz)[0];
   const stop = npc.route.markers.find(marker => marker.name === 'stop-t');
   npc.progress = stop.at - 3;
   Object.assign(npc, sampleRoute(npc.route, npc.progress), { speed: 0 });
-  for (let step = 0; step < 3; step += 1) {
-    updateNpcs([npc], .2, step * .2, REGIONS.nz, { x: 75, y: 75 });
-    assert.equal(npc.progress, stop.at - 3);
-    assert.equal(npc.servedStop, null);
-  }
-  updateNpcs([npc], .2, .6, REGIONS.nz, { x: 75, y: 75 });
+  updateNpcs([npc], .2, 0, REGIONS.nz, { x: 75, y: 75 });
+  assert.equal(npc.progress, stop.at - 3);
+  assert.equal(npc.servedStop, null);
+  updateNpcs([npc], .1, .2, REGIONS.nz, { x: 75, y: 75 });
   assert.equal(npc.servedStop, 'stop-t');
   assert.ok(npc.progress > stop.at - 3);
 });
+
+for (const region of Object.values(REGIONS)) {
+  test(`${region.code} 复杂 T NPC 使用 GIVE WAY 和中央等待区控制点`, () => {
+    const route = npcRoutes(region, true)[0];
+    assert.ok(route.markers.some(marker => marker.name === 'complex-give'));
+    assert.ok(route.markers.some(marker => marker.name === 'complex-median'));
+    assert.ok(distance(sampleRoute(route, 0), sampleRoute(route, route.length - .01)) < .02);
+    for (const point of route.points) assert.equal(isOnRoad(point, region, true), true);
+    for (let progress = 0; progress < route.length; progress += 2) {
+      const point = sampleRoute(route, progress);
+      assert.equal(wrongSide(point, point.angle, true), false, `wrong side at ${point.x},${point.y}`);
+    }
+    const give = route.markers.find(marker => marker.name === 'complex-give');
+    const stopped = sampleRoute(route, give.at - 3);
+    assert.ok(stopped.y + 19 < COMPLEX_T.giveWayY, 'front bumper before give-way line');
+  });
+
+  test(`${region.code} 复杂 T NPC 不同时占用中央等待区`, () => {
+    const npcs = createNpcs(4, 'normal', region);
+    for (let frame = 0; frame < 24000; frame += 1) {
+      updateNpcs(npcs, 1 / 60, frame / 60, region, { x: 75, y: 75 });
+      const occupants = npcs.filter(inComplexMedian);
+      assert.ok(occupants.length <= 1, `multiple median occupants: ${region.code}`);
+    }
+  });
+}
+
+for (const region of Object.values(REGIONS)) {
+  test(`${region.code} 扩展街区六辆车十分钟循环、主路双向通车且无互锁`, () => {
+    const npcs = createNpcs(8, 'normal', region);
+    assert.equal(npcs.length, 6);
+    const stationary = new Map(npcs.map(npc => [npc.id, 0]));
+    const laps = new Map(npcs.map(npc => [npc.id, 0]));
+    const seen = new Set();
+    for (let frame = 0; frame < 36000; frame++) {
+      const previous = npcs.map(npc => ({ ...npc }));
+      updateNpcs(npcs, 1 / 60, frame / 60, region, { x: 75, y: 75 });
+      for (const [index, npc] of npcs.entries()) {
+        const prior = previous[index];
+        assert.ok(isOnRoad(npc, region, true), `off road: ${npc.route.id}`);
+        const frozen = npc.progress === prior.progress ? stationary.get(npc.id) + 1 : 0;
+        stationary.set(npc.id, frozen);
+        assert.ok(frozen < 30 * 60, `stalled: ${npc.route.id}`);
+        if (npc.progress < prior.progress) laps.set(npc.id, laps.get(npc.id) + 1);
+        for (const other of npcs.slice(index + 1)) assert.ok(distance(npc, other) >= 24, `collision: ${npc.id}/${other.id}`);
+        for (const approach of SIGNAL_APPROACHES) {
+          if (crossesFront(prior, npc, approach)) {
+            const light = signalForApproach(frame / 60, region, approach);
+            assert.ok(light === 'green' || light === 'amber' && npc.signalMemory?.stopOnAmber === false, 'unsafe signal crossing');
+          }
+        }
+        if (Math.abs(npc.x - COMPLEX_T.x) < 50) {
+          if (Math.abs(npc.y - COMPLEX_T.eastboundLane) < 10 && Math.sin(npc.angle) > .9) seen.add('east');
+          if (Math.abs(npc.y - COMPLEX_T.westboundLane) < 10 && Math.sin(npc.angle) < -.9) seen.add('west');
+        }
+      }
+    }
+    assert.deepEqual([...seen].sort(), ['east', 'west']);
+    for (const count of laps.values()) assert.ok(count >= 2, 'route failed to circulate');
+  });
+}

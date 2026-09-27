@@ -10,9 +10,9 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('http://localhost:5173/');
-  assert.equal(await page.locator('#level-list .level-card').count(), 7);
+  assert.equal(await page.locator('#level-list .level-card').count(), 8);
   assert.equal(await page.locator('#play').isVisible(), false);
-  assert.equal(await page.locator('[data-level="7"]').isDisabled(), true);
+  assert.equal(await page.locator('[data-level="8"]').isDisabled(), true);
 
   await page.locator('[data-level="1"]').click();
   assert.equal(await page.locator('#play').isVisible(), true);
@@ -37,19 +37,28 @@ try {
   await page.locator('[data-region="uk"]').click();
   assert.match(await page.locator('#region-caption').innerText(), /UNITED KINGDOM/);
   await page.locator('[data-region="nz"]').click();
-  await page.evaluate(() => localStorage.setItem('right-side-ready-progress-v1', JSON.stringify({ nz: 6, uk: 0 })));
+  await page.evaluate(() => {
+    localStorage.removeItem('right-side-ready-progress-v2');
+    localStorage.setItem('right-side-ready-progress-v1', JSON.stringify({ nz: 6, uk: 0 }));
+  });
   await page.reload();
   assert.equal(await page.locator('[data-level="7"]').isDisabled(), false);
+  assert.equal(await page.locator('[data-level="8"]').isDisabled(), false);
   await page.locator('[data-level="3"]').click();
   assert.equal(await page.locator('#play-name').innerText(), 'T 型右转');
   assert.match(await page.locator('#mission-text').innerText(), /东侧 T 字口让行后右转/);
   await page.screenshot({ path: 'tools/t-junction-preview.png' });
   await page.locator('#back-button').click();
   await page.locator('[data-level="4"]').click();
+  assert.equal(await page.locator('#play-name').innerText(), '复杂 T 字口');
+  assert.match(await page.locator('#mission-text').innerText(), /中央等待区/);
+  await page.screenshot({ path: 'tools/complex-t-preview.png' });
+  await page.locator('#back-button').click();
+  await page.locator('[data-level="5"]').click();
   await page.waitForFunction(() => document.querySelector('#status-banner').textContent.includes('北向信号'));
   await page.screenshot({ path: 'tools/signal-preview.png' });
   await page.locator('#back-button').click();
-  await page.locator('[data-level="7"]').click();
+  await page.locator('[data-level="8"]').click();
   assert.equal(await page.locator('#mini-map').isVisible(), true);
   await page.screenshot({ path: 'tools/free-preview.png' });
   await page.evaluate(() => {
@@ -61,21 +70,21 @@ try {
       return clearRect.apply(this, args);
     };
     context.roundRect = function (...args) {
-      this.carDraws += 1;
+      if (args[2] === 22 && args[3] === 38) this.carDraws += 1;
       return roundRect.apply(this, args);
     };
   });
   const drawnCars = () => page.evaluate(() => document.querySelector('#game-canvas').getContext('2d').carDraws);
   await page.waitForTimeout(80);
-  assert.equal(await drawnCars(), 5);
+  assert.equal(await drawnCars(), 7);
   await page.locator('#density-button').click();
   assert.equal(await page.locator('#density-button').innerText(), '车流：低（重开生效）');
   await page.waitForTimeout(80);
-  assert.equal(await drawnCars(), 5);
+  assert.equal(await drawnCars(), 7);
   await page.locator('#density-button').click();
   assert.equal(await page.locator('#density-button').innerText(), '车流：标准（重开生效）');
   await page.waitForTimeout(80);
-  assert.equal(await drawnCars(), 5);
+  assert.equal(await drawnCars(), 7);
   await page.locator('#density-button').click();
   await page.locator('#restart-button').click();
   assert.equal(await page.locator('#density-button').innerText(), '车流：低');
@@ -85,7 +94,7 @@ try {
   await page.locator('#restart-button').click();
   assert.equal(await page.locator('#density-button').innerText(), '车流：标准');
   await page.waitForTimeout(80);
-  assert.equal(await drawnCars(), 5);
+  assert.equal(await drawnCars(), 7);
   await page.locator('#mini-toggle').click();
   assert.equal(await page.locator('#mini-map').isVisible(), false);
   await page.locator('#mini-toggle').click();
@@ -113,8 +122,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#offline-status').textContent.includes('已就绪'));
   await desktop.setOffline(true);
   await page.reload();
-  assert.equal(await page.locator('#level-list .level-card').count(), 7);
-  await page.locator('[data-level="7"]').click();
+  assert.equal(await page.locator('#level-list .level-card').count(), 8);
+  await page.locator('[data-level="8"]').click();
   assert.equal(await page.locator('#play').isVisible(), true);
   await page.locator('#back-button').click();
   await page.locator('[data-region="uk"]').click();
@@ -151,7 +160,7 @@ try {
     const pixel = (pixelX, pixelY) => [...context.getImageData(pixelX, pixelY, 1, 1).data];
     const sample = (signal, brake, elapsed) => {
       render(context, { car: { x: 185, y: 650, angle: 0, signal }, region: REGIONS.nz,
-        elapsed, level: { id: 7 }, input: { brake }, npcs: [] }, 600, 600);
+        elapsed, level: { id: 8, free: true }, input: { brake }, npcs: [] }, 600, 600);
       return { leftFront: pixel(287, 350), rightFront: pixel(312, 350),
         leftRear: pixel(287, 391), rightRear: pixel(312, 391),
         leftBrake: pixel(294, 393), rightBrake: pixel(305, 393) };
@@ -212,7 +221,7 @@ try {
   await portrait.close();
 
   assert.deepEqual(errors, []);
-  console.log('通过：首关、STOP、路口灯号、车流切换不闪现、手机触控/车灯、自由关、离线切英国及横竖屏；无页面异常。');
+  console.log('通过：首关、STOP、复杂 T、路口灯号、车流切换不闪现、手机触控/车灯、自由关、离线切英国及横竖屏；无页面异常。');
 } finally {
   await browser.close();
 }

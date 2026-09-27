@@ -1,4 +1,4 @@
-const CACHE = 'right-side-ready-v8';
+const CACHE = 'right-side-ready-v9';
 const ASSETS = ['./','./index.html','./styles.css','./manifest.webmanifest','./assets/icon.svg','./src/data.js','./src/rules.js','./src/render.js','./src/npc.js','./src/game.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
